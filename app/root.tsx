@@ -12,6 +12,7 @@ import {
     redirect,
     useLoaderData,
     useNavigation,
+    useSubmit,
 } from "@remix-run/react";
 
 import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
@@ -27,10 +28,8 @@ export const action = async () => {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
     const url = new URL(request.url);
     const searchParams = url.searchParams;
-
     const q = searchParams.get("q");
     const contacts = await getContacts(q);
-    console.log("here", q);
     return json({ contacts, q });
 };
 
@@ -38,6 +37,10 @@ export default function App() {
     const { contacts, q } = useLoaderData<typeof loader>();
     const [query, setQuery] = useState(q || "");
     const navigation = useNavigation();
+    const submit = useSubmit();
+    const searching =
+        navigation.location &&
+        new URLSearchParams(navigation.location.search).has("q");
 
     useEffect(() => {
         setQuery(q || "");
@@ -47,7 +50,10 @@ export default function App() {
         <html lang="en">
             <head>
                 <meta charSet="utf-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <meta
+                    name="viewport"
+                    content="width=device-width, initial-scale=1"
+                />
                 <Meta />
                 <Links />
             </head>
@@ -55,7 +61,16 @@ export default function App() {
                 <div id="sidebar">
                     <h1>Remix Contacts</h1>
                     <div>
-                        <Form id="search-form" role="search">
+                        <Form
+                            id="search-form"
+                            role="search"
+                            onChange={(event) => {
+                                const isFirstSearch = q === null;
+                                submit(event.currentTarget, {
+                                    replace: !isFirstSearch,
+                                });
+                            }}
+                        >
                             <input
                                 id="q"
                                 value={query || ""}
@@ -63,9 +78,16 @@ export default function App() {
                                 placeholder="Search"
                                 type="search"
                                 name="q"
-                                onChange={(event) => setQuery(event.target.value)}
+                                onChange={(event) =>
+                                    setQuery(event.target.value)
+                                }
+                                className={searching ? "loading" : ""}
                             />
-                            <div id="search-spinner" aria-hidden hidden={true} />
+                            <div
+                                id="search-spinner"
+                                aria-hidden
+                                hidden={!searching}
+                            />
                         </Form>
                         <Form method="post">
                             <button type="submit">New</button>
@@ -78,18 +100,28 @@ export default function App() {
                                     <li key={contact.id}>
                                         <NavLink
                                             to={`contacts/${contact.id}`}
-                                            className={({ isActive, isPending }) =>
-                                                isActive ? "active" : isPending ? "pending" : ""
+                                            className={({
+                                                isActive,
+                                                isPending,
+                                            }) =>
+                                                isActive
+                                                    ? "active"
+                                                    : isPending
+                                                    ? "pending"
+                                                    : ""
                                             }
                                         >
                                             {contact.first || contact.last ? (
                                                 <>
-                                                    {contact.first} {contact.last}
+                                                    {contact.first}{" "}
+                                                    {contact.last}
                                                 </>
                                             ) : (
                                                 <i>No Name</i>
                                             )}{" "}
-                                            {contact.favorite ? <span>*</span> : null}
+                                            {contact.favorite ? (
+                                                <span>★</span>
+                                            ) : null}
                                         </NavLink>
                                     </li>
                                 ))}
@@ -109,7 +141,14 @@ export default function App() {
                         </ul>
                     </nav>
                 </div>
-                <div className={navigation.state === "loading" ? "loading" : ""} id="detail">
+                <div
+                    className={
+                        navigation.state === "loading" && !searching
+                            ? "loading"
+                            : ""
+                    }
+                    id="detail"
+                >
                     <Outlet />
                 </div>
 
@@ -121,4 +160,6 @@ export default function App() {
     );
 }
 
-export const links: LinksFunction = () => [{ rel: "stylesheet", href: appStylesHref }];
+export const links: LinksFunction = () => [
+    { rel: "stylesheet", href: appStylesHref },
+];
